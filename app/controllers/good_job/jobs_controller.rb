@@ -31,25 +31,27 @@ module GoodJob
                Job.where(active_job_id: job_ids)
              end
 
-      processed_jobs = jobs.map do |job|
-        case mass_action
-        when :discard
-          job.discard_job(DISCARD_MESSAGE)
-        when :reschedule
-          job.reschedule_job
-        when :retry
-          job.retry_job
-        when :destroy
-          job.destroy_job
-        end
+      processed_jobs = jobs.each_slice(10) do |batch_jobs|
+        batch_jobs.each do |job|
+          case mass_action
+          when :discard
+            job.discard_job(DISCARD_MESSAGE)
+          when :reschedule
+            job.reschedule_job
+          when :retry
+            job.retry_job
+          when :destroy
+            job.destroy_job
+          end
 
-        job
-      rescue GoodJob::Job::ActionForStateMismatchError, GoodJob::AdvisoryLockable::RecordAlreadyAdvisoryLockedError
-        nil
-      end.compact
+          job
+        rescue GoodJob::Job::ActionForStateMismatchError, GoodJob::AdvisoryLockable::RecordAlreadyAdvisoryLockedError
+          nil
+        end
+      end
 
       notice = if processed_jobs.any?
-                 "Successfully #{ACTIONS[mass_action]} #{processed_jobs.count} #{'job'.pluralize(processed_jobs.count)}"
+                 "Successfully #{ACTIONS[mass_action]} #{jobs.length} #{'job'.pluralize(jobs.length)}"
                else
                  "No jobs were #{ACTIONS[mass_action]}"
                end
